@@ -14,11 +14,6 @@ with open("README.md") as f:
     readme = f.read()
 
 extras_require = {
-    'aquick': [
-        'cchardet',
-        'aiodns',
-        'brotlipy'
-    ]
 }
 
 setup(
@@ -32,7 +27,7 @@ setup(
     version=version,
     packages=['vrcpy'],
     #license="MIT",
-    description="A Python wrapper for the VRChat WebAPI supporting both sync and async",
+    description="A Python wrapper for the VRChat WebAPI",
     long_description=readme,
     long_description_content_type="text/markdown",
     include_package_data=True,

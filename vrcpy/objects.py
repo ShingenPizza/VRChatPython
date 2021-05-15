@@ -1,7 +1,4 @@
 
-import asyncio
-
-import vrcpy
 from vrcpy import types
 from vrcpy.errors import IntegretyError, GeneralError
 from vrcpy._hardtyping import *
@@ -20,8 +17,6 @@ class BaseObject:
 
         self._dict = {}  # Dictionary that is assigned
 
-        self.cacheTask = None  # cacheTask for async objects using __cinit__
-
     def _assign(self, obj):
         self._objectIntegrety(obj)
 
@@ -37,29 +32,14 @@ class BaseObject:
                 setattr(self, key, obj[key])
 
         if hasattr(self, "__cinit__") and self.client.caching:
-            if asyncio.iscoroutinefunction(self.__cinit__):
-                self.cacheTask = asyncio.get_event_loop().create_task(self.__cinit__())
-            else:
-                self.__cinit__()
+            self.__cinit__()
         elif hasattr(self, "__cinit__"):
-            if isinstance(self.client, vrcpy.client.AClient):
-                async def di1(self):
-                    async def di2(self):
-                        raise AttributeError(self.objType + " object has no attribute 'do_init'")
+            def di1(self):
+                def di2(self):
+                    raise AttributeError(self.objType + " object has no attribute 'do_init'")
 
-                    if asyncio.iscoroutinefunction(self.__cinit__):
-                        await self.__cinit__()
-                    else:
-                        self.__cinit__()
-
-                    self.do_init = di2
-            else:
-                def di1(self):
-                    def di2(self):
-                        raise AttributeError(self.objType + " object has no attribute 'do_init'")
-
-                    self.__cinit__()
-                    self.do_init = di2
+                self.__cinit__()
+                self.do_init = di2
             self.do_init = di1
 
         self._dict = obj
