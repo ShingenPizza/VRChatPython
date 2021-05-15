@@ -66,3 +66,8 @@ class WebSocketOpenedError(Exception):
 class RateLimitError(Exception):
     # When VRChat is ratelimiting this user
     pass
+
+
+class ServiceUnavailable(Exception):
+    # For 503
+    pass

@@ -4,7 +4,7 @@ import requests
 
 from vrcpy.errors import (
     AlreadyFriendsError, GeneralError, IncorrectLoginError, InvalidTwoFactorAuth, NotFoundError, NotAuthenticated, NotFriendsError, OutOfDateError,
-    RateLimitError, RequiresTwoFactorAuthError,
+    RateLimitError, RequiresTwoFactorAuthError, ServiceUnavailable,
 )
 
 
@@ -41,11 +41,15 @@ def raise_for_status(resp):
     def handle_429():
         raise RateLimitError("You are being rate-limited.")
 
+    def handle_503():
+        raise ServiceUnavailable(resp['data']['error']['message'])
+
     switch = {
         400: handle_400,
         401: handle_401,
         404: handle_404,
         429: handle_429,
+        503: handle_503,
     }
 
     if resp['status'] in switch:
