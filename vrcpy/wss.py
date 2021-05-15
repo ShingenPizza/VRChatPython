@@ -9,7 +9,7 @@ import json
 
 class WSSClient(Client):
     def __init__(self, verify=True, reconnect=True):
-        super().__init__(verify, True)  # Caching is always true for ws client
+        super().__init__(verify)
 
         self.ws = None
         self._wsthread = None

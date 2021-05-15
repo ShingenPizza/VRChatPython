@@ -381,11 +381,10 @@ class Client:
         self.loggedIn = True
         self.needsVerification = False
 
-    def __init__(self, verify=True, caching=True):
+    def __init__(self, verify=True):
         self.api = Call(verify)
         self.loggedIn = False
         self.me = None
-        self.caching = caching
 
         self.needsVerification = False
         self.log_to_console = False

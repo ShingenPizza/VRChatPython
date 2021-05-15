@@ -31,17 +31,6 @@ class BaseObject:
             else:
                 setattr(self, key, obj[key])
 
-        if hasattr(self, "__cinit__") and self.client.caching:
-            self.__cinit__()
-        elif hasattr(self, "__cinit__"):
-            def di1(self):
-                def di2(self):
-                    raise AttributeError(self.objType + " object has no attribute 'do_init'")
-
-                self.__cinit__()
-                self.do_init = di2
-            self.do_init = di1
-
         self._dict = obj
 
     def _objectIntegrety(self, obj):
@@ -316,33 +305,11 @@ class CurrentUser(User):
     def favorite(self):
         raise AttributeError("'CurrentUser' object has no attribute 'favorite'")
 
-    def __cinit__(self):
-        if hasattr(self, "currentAvatar"):
-            self.currentAvatar = self.client.fetch_avatar(self.currentAvatar)
-
-        self.onlineFriends = self.client.fetch_friends()
-        self.offlineFriends = self.client.fetch_friends(offline=True)
+    def __init__(self, client, obj):
+        self.onlineFriends = []
+        self.offlineFriends = []
         self.friends = self.onlineFriends + self.offlineFriends
 
-        if hasattr(self, "activeFriends"):
-            naf = []
-            for fid in self.activeFriends:
-                for f in self.friends:
-                    if f.id == fid:
-                        naf.append(f)
-                        break
-
-            self.activeFriends = naf
-
-        if hasattr(self, "homeLocation"):
-            if self.homeLocation == "":
-                self.homeLocation = None
-            else:
-                self.homeLocation = self.client.fetch_world(self.homeLocation)
-        else:
-            self.homeLocation = None
-
-    def __init__(self, client, obj):
         super().__init__(client)
         self.unique += [
             "feature",
@@ -434,13 +401,6 @@ class World(LimitedWorld):
 
         resp = self.client.api.call("/instances/"+self.id+":"+id)
         return Instance(self.client, resp["data"])
-
-    def __cinit__(self):
-        instances = []
-        for instance in self.instances:
-            instances.append(self.fetch_instance(instance[0]))
-
-        self.instances = instances
 
     def __init__(self, client, obj):
         super().__init__(client)
@@ -588,17 +548,6 @@ class NotificationDetails(BaseObject):
 
 class Favorite(BaseObject):
     objType = "Favorite"
-
-    def __cinit__(self):
-        if self.type == types.FavoriteType.World:
-            self.object = self.client.fetch_world(self.favoriteId)
-        elif self.type == types.FavoriteType.Friend:
-            for friend in self.client.me.friends:
-                if friend.id == self.favoriteId:
-                    self.object = friend
-                    break
-        elif self.type == types.FavoriteType.Avatar:
-            self.object = self.client.fetch_avatar(self.favoriteId)
 
     def __init__(self, client, obj):
         super().__init__(client)
