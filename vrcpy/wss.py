@@ -1,10 +1,12 @@
+
+import json
+import threading
+import time
+import websocket
+
 from vrcpy import Client, objects
 from vrcpy.errors import WebSocketError, WebSocketOpenedError, IntegretyError
 from vrcpy.types import State
-import threading
-import websocket
-import time
-import json
 
 
 class WSSClient(Client):
@@ -16,18 +18,8 @@ class WSSClient(Client):
 
         self.reconnect = reconnect
 
-    def login(self, username, password):
-        super().login(username, password)
-        if self.loggedIn:
-            self.connect()
-
-    def login2fa(self, username, password, code=None, verify=False):
-        super().login2fa(username, password, code, verify)
-        if self.loggedIn:
-            self.connect()
-
-    def verify2fa(self, code):
-        super().verify2fa(code)
+    def login(self, username=None, password=None, b64=None):
+        super().login(username=username, password=password, b64=b64)
         if self.loggedIn:
             self.connect()
 
@@ -40,11 +32,11 @@ class WSSClient(Client):
         if self.ws is not None:
             raise WebSocketOpenedError("There is already a websocket open!")
 
-        auth = self.api.session.cookies.get("auth")
+        auth = self.api.session.cookies.get('auth')
 
         # websocket.enableTrace(True)
         self.ws = websocket.WebSocketApp(
-            "wss://pipeline.vrchat.cloud/?authToken="+auth,
+            f'wss://pipeline.vrchat.cloud/?authToken={auth}',
             on_message=self._ws_message,
             on_error=self._ws_error,
             on_close=self._ws_close,
@@ -68,20 +60,20 @@ class WSSClient(Client):
         message = json.loads(message)
 
         switch = {
-            "friend-location": self._ws_friend_location,
-            "friend-online": self._ws_friend_online,
-            "friend-active": self._ws_friend_active,
-            "friend-offline": self._ws_friend_offline,
-            "friend-add": self._ws_friend_add,
-            "friend-delete": self._ws_friend_delete,
-            "friend-update": self._ws_friend_update,
-            "notification": self._ws_notification
+            'friend-location': self._ws_friend_location,
+            'friend-online': self._ws_friend_online,
+            'friend-active': self._ws_friend_active,
+            'friend-offline': self._ws_friend_offline,
+            'friend-add': self._ws_friend_add,
+            'friend-delete': self._ws_friend_delete,
+            'friend-update': self._ws_friend_update,
+            'notification': self._ws_notification,
         }
 
-        if message["type"] in switch:
-            self._do_function(switch[message["type"]], json.loads(message["content"]))  # leaving this like that, so it doesn't give me stupid warnings
+        if message['type'] in switch:
+            self._do_function(switch[message['type']], json.loads(message['content']))  # leaving this like that, so it doesn't give me stupid warnings
         else:
-            self._ws_unhandled_event(message["type"], json.loads(message["content"]))
+            self._ws_unhandled_event(message['type'], json.loads(message['content']))
 
     def _ws_error(self, ws, error):
         raise WebSocketError(error)
@@ -99,21 +91,21 @@ class WSSClient(Client):
     def _ws_open(self, ws):
         self.on_connect()
 
-    def _update_friend(self, newUser, id):
+    def _update_friend(self, newUser, user_id):
         # Updates self.me friends lists
         # Returns old user
 
         oldUser = None
 
         for user in self.me.onlineFriends:
-            if user.id == id:
+            if user.id == user_id:
                 oldUser = user
                 self.me.onlineFriends.remove(user)
                 break
 
         if oldUser is None:
             for user in self.me.offlineFriends:
-                if user.id == id:
+                if user.id == user_id:
                     oldUser = user
                     self.me.offlineFriends.remove(user)
                     break
@@ -128,49 +120,49 @@ class WSSClient(Client):
         return oldUser
 
     def _ws_friend_online(self, content):
-        user = objects.User(self, content["user"])
+        user = objects.User(self, content['user'])
         self._update_friend(user, user.id)
         self.on_friend_online(user)
 
     def _ws_friend_active(self, content):
-        user = objects.User(self, content["user"])
+        user = objects.User(self, content['user'])
         self._update_friend(user, user.id)
         self.on_friend_active(user)
 
     def _ws_friend_location(self, content):
-        user = objects.User(self, content["user"])
+        user = objects.User(self, content['user'])
 
-        if content["location"] == "private":
+        if content['location'] == 'private':
             self.on_friend_location(user, None, None, None)
             return
 
         try:
-            world = objects.World(self, content["world"])
+            world = objects.World(self, content['world'])
         except IntegretyError:
-            world = self.fetch_world(content["world"]["id"])
+            world = self.fetch_world(content['world']['id'])
 
-        instance = world.fetch_instance(content["instance"])
-        location = objects.Location(self, content["location"])
+        instance = world.fetch_instance(content['instance'])
+        location = objects.Location(self, content['location'])
 
         self._update_friend(user, user.id)
         self.on_friend_location(user, world, location, instance)
 
     def _ws_friend_offline(self, content):
-        user = self.fetch_user_by_id(content["userId"])
+        user = self.fetch_user_by_id(content['userId'])
         self._update_friend(user, user.id)
         self.on_friend_offline(user)
 
     def _ws_friend_add(self, content):
-        user = objects.User(self, content["user"])
+        user = objects.User(self, content['user'])
         self._update_friend(user, user.id)
         self.on_friend_add(user)
 
     def _ws_friend_delete(self, content):
-        user = self._update_friend(None, content["userId"])
+        user = self._update_friend(None, content['userId'])
         self.on_friend_delete(user)
 
     def _ws_friend_update(self, content):
-        user = objects.User(self, content["user"])
+        user = objects.User(self, content['user'])
         self._update_friend(user, user.id)
         self.on_friend_update(user)
 
@@ -191,8 +183,7 @@ class WSSClient(Client):
             print("Connected to wss pipeline.")
 
         """
-
-        if func.__name__.startswith("on_") and hasattr(self, func.__name__):
+        if func.__name__.startswith('on_') and hasattr(self, func.__name__):
             setattr(self, func.__name__, func)
             return func
         else:

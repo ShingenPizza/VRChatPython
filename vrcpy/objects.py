@@ -1,11 +1,12 @@
 
+from typing import List
+
 from vrcpy import types
 from vrcpy.errors import IntegretyError, GeneralError
-from vrcpy._hardtyping import *
 
 
 class BaseObject:
-    objType = "Base"
+    objType = 'Base'
 
     def __init__(self, client):
         self.id = None
@@ -37,147 +38,134 @@ class BaseObject:
         if not self.only:
             for key in self.unique:
                 if key not in obj:
-                    raise IntegretyError("Object does not have unique key ("+key+") for "+self.objType +
-                                         " (Class definition may be outdated, please make an issue on github)")
+                    raise IntegretyError(f"Object does not have unique key ({key}) for {self.objType} (Class definition may be outdated, please make an issue on github)")
         else:
             for key in obj:
                 if key not in self.only:
-                    raise IntegretyError("Object has key not found in "+self.objType +
-                                         " (Class definition may be outdated, please make an issue on github)")
+                    raise IntegretyError(f"Object has key not found in {self.objType} (Class definition may be outdated, please make an issue on github)")
             for key in self.only:
                 if key not in obj:
-                    raise IntegretyError("Object does not have requred key ("+key+") for "+self.objType +
-                                         " (Class definition may be outdated, please make an issue on github)")
-
-# Avatar Objects
+                    raise IntegretyError(f"Object does not have requred key ({key}) for {self.objType} (Class definition may be outdated, please make an issue on github)")
 
 
 class Avatar(BaseObject):
-    objType = "Avatar"
-
-    def author(self):
-        '''
-        Used to get author of the avatar
-        Returns User object
-        '''
-
-        resp = self.client.api.call("/users/"+self.authorId)
-        return User(self.client, resp["data"])
-
-    def favorite(self):
-        '''
-        Used to favorite avatar
-        Returns favorite object
-        '''
-
-        resp = self.client.api.call("/favorites", "POST", json={"type": types.FavoriteType.Avatar,
-                                                                "favoriteId": self.id, "tags": ["avatars1"]})
-        return Favorite(self.client, resp["data"])
-
-    def select(self):
-        '''
-        Selects this avatar to be used/worn
-        '''
-
-        self.client.api.call("/avatars/{}/select".format(self.id), "PUT")
+    objType = 'Avatar'
 
     def __init__(self, client, obj):
         super().__init__(client)
         self.authorId = None
         self.unique += [
-            "authorId",
-            "authorName",
-            "version",
-            "name"
+            'authorId',
+            'authorName',
+            'version',
+            'name',
         ]
 
         self.arrTypes.update({
-            "unityPackages": UnityPackage
+            'unityPackages': UnityPackage,
         })
 
         self._assign(obj)
 
-# User Objects
+    def author(self):
+        """
+        Used to get author of the avatar
+        :return: User object
+        :rtype: User
+        """
+        resp = self.client.api.call(f'/users/{self.authorId}')
+        return User(self.client, resp['data'])
+
+    def favorite(self):
+        """
+        Used to favorite avatar
+        :return: Favorite object
+        :rtype: Favorite
+        """
+        resp = self.client.api.call('/favorites', 'POST', json={'type': types.FavoriteType.Avatar, 'favoriteId': self.id, 'tags': ['avatars1']})
+        return Favorite(self.client, resp['data'])
+
+    def select(self):
+        """
+        Selects this avatar to be used/worn
+        """
+        self.client.api.call(f'/avatars/{self.id}/select', 'PUT')
 
 
 class LimitedUser(BaseObject):
-    objType = "LimitedUser"
+    objType = 'LimitedUser'
+
+    def __init__(self, client, obj=None):
+        super().__init__(client)
+        self.unique += [
+            'isFriend',
+        ]
+
+        self.types.update({
+            'location': Location,
+            'instanceId': Location,
+        })
+
+        if obj is not None:
+            self._assign(obj)
+        if not hasattr(self, 'bio'):
+            self.bio = ''
 
     def fetch_full(self):
-        '''
+        """
         Used to get full version of this user
-        Returns User object
-        '''
-
-        resp = self.client.api.call("/users/"+self.id)
-        return User(self.client, resp["data"])
+        :return: User object
+        :rtype: User
+        """
+        resp = self.client.api.call(f'/users/{self.id}')
+        return User(self.client, resp['data'])
 
     def public_avatars(self):
-        '''
+        """
         Used to get public avatars made by this user
-        Returns list of Avatar objects
-        '''
-
-        resp = self.client.api.call("/avatars",
-                                    params={"userId": self.id})
+        :return: list of Avatar objects
+        :rtype: List[Avatar]
+        """
+        resp = self.client.api.call('/avatars', params={'userId': self.id})
 
         avatars = []
-        for avatar in resp["data"]:
+        for avatar in resp['data']:
             avatars.append(Avatar(self.client, avatar))
 
         return avatars
 
     def unfriend(self):
-        '''
+        """
         Used to unfriend this user
-        Returns void
-        '''
-
-        self.client.api.call("/auth/user/friends/"+self.id, "DELETE")
+        """
+        self.client.api.call(f'/auth/user/friends/{self.id}', 'DELETE')
 
     def friend(self):
-        '''
+        """
         Used to friend this user
-        Returns Notification object
-        '''
-
-        resp = self.client.api.call("/user/"+self.id+"/friendRequest", "POST")
-        return Notification(self.client, resp["data"])
+        :return: Notification object
+        :rtype: Notification
+        """
+        resp = self.client.api.call(f'/user/{self.id}/friendRequest', 'POST')
+        return Notification(self.client, resp['data'])
 
     def favorite(self):
-        '''
+        """
         Used to favorite this user
-        Returns favorite object
-        '''
-
-        resp = self.client.api.call("/favorites", "POST", params={"type": types.FavoriteType.Friend,
-                                                                  "favoriteId": self.id})
-        return Favorite(self.client, resp["data"])
-
-    def __init__(self, client, obj=None):
-        super().__init__(client)
-        self.unique += [
-            "isFriend"
-        ]
-
-        self.types.update({
-            "location": Location,
-            "instanceId": Location
-        })
-
-        if obj is not None:
-            self._assign(obj)
-        if not hasattr(self, "bio"):
-            self.bio = ""
+        :return: Favorite object
+        :rtype: Favorite
+        """
+        resp = self.client.api.call('/favorites', 'POST', params={'type': types.FavoriteType.Friend, 'favoriteId': self.id})
+        return Favorite(self.client, resp['data'])
 
 
 class User(LimitedUser):
-    objType = "User"
+    objType = 'User'
 
     def __init__(self, client, obj=None):
         super().__init__(client)
         self.unique += [
-            "allowAvatarCopying"
+            'allowAvatarCopying',
         ]
 
         if obj is not None:
@@ -185,15 +173,30 @@ class User(LimitedUser):
 
 
 class CurrentUser(User):
-    objType = "CurrentUser"
+    objType = 'CurrentUser'
+
+    def __init__(self, client, obj):
+        self.onlineFriends = []
+        self.offlineFriends = []
+        self.friends = []
+
+        super().__init__(client)
+        self.unique += [
+            'feature',
+            'hasEmail',
+        ]
+
+        self.types.update({
+            'feature': Feature,
+        })
+
+        self._assign(obj)
 
     def fetch_full(self):
-        user = LimitedUser.fetch_full(self)
-        return user
+        return LimitedUser.fetch_full(self)
 
     def public_avatars(self):
-        avatars = LimitedUser.public_avatars(self)
-        return avatars
+        return LimitedUser.public_avatars(self)
 
     def unfriend(self):
         raise AttributeError("'CurrentUser' object has no attribute 'unfriend'")
@@ -202,129 +205,106 @@ class CurrentUser(User):
         raise AttributeError("'CurrentUser' object has no attribute 'friend'")
 
     def avatars(self, releaseStatus=types.ReleaseStatus.All):
-        '''
+        """
         Used to get avatars by current user
 
-            releaseStatus, string
-            One of types type.ReleaseStatus
+        :param releaseStatus: One of types type.ReleaseStatus
+        :type releaseStatus: str
 
-        Returns list of Avatar objects
-        '''
-
-        resp = self.client.api.call("/avatars",
-                                    params={"releaseStatus": releaseStatus, "user": "me"})
+        :return: list of Avatar objects
+        :rtype: List[Avatar]
+        """
+        resp = self.client.api.call('/avatars', params={'releaseStatus': releaseStatus, 'user': 'me'})
 
         avatars = []
-        for avatar in resp["data"]:
-            if avatar["authorId"] == self.id:
+        for avatar in resp['data']:
+            if avatar['authorId'] == self.id:
                 avatars.append(Avatar(self.client, avatar))
 
         return avatars
 
-    def update_info(self, email=None, status=None,
-                    statusDescription=None, bio=None, bioLinks=None):
-        '''
+    def update_info(self, email=None, status=None, statusDescription=None, bio=None, bioLinks=None):
+        """
         Used to update current user info
 
-            email, string
-            New email
+        :param email: New email
+        :type email: str
 
-            status, string
-            New status
+        :param status: New status
+        :type status: str
 
-            statusDescription, string
-            New website status
+        :param statusDescription: New website status
+        :type statusDescription: str
 
-            bio, string
-            New bio
+        :param bio: New bio
+        :type bio: str
 
-            bioLinks, list of strings
-            New links in bio
+        :param bioLinks: New links in bio
+        :type bioLinks: List[str]
 
-        Returns updated CurrentUser
-        '''
-
-        params = {"email": email, "status": status, "statusDescription": statusDescription,
-                  "bio": bio, "bioLinks": bioLinks}
+        :return: updated CurrentUser
+        :rtype: CurrentUser
+        """
+        params = {'email': email, 'status': status, 'statusDescription': statusDescription, 'bio': bio, 'bioLinks': bioLinks}
 
         for p in params:
             if params[p] is None:
                 params[p] = getattr(self, p)
 
-        resp = self.client.api.call("/users/"+self.id, "PUT", params=params)
+        resp = self.client.api.call(f'/users/{self.id}', 'PUT', params=params)
 
-        self.client.me = CurrentUser(self.client, resp["data"])
+        self.client.me = CurrentUser(self.client, resp['data'])
         return self.client.me
 
-    def fetch_favorites(self, t, n: int = 100):
-        '''
+    def fetch_favorites(self, t, n=100):
+        """
         Used to get favorites
 
-            t, string
-            FavoriteType
+        :param t: FavoriteType
+        :type t: str
 
-            n, integer
-            Max number of favorites to return (Most that will ever return is 100)
+        :param n: Max number of favorites to return (Most that will ever return is 100)
+        :type n: int
 
-        Returns list of Favorite objects
-        '''
-
-        resp = self.client.api.call("/favorites", params={"type": t, "n": n})
+        :return: list of Favorite objects
+        :rtype: List[Favorite]
+        """
+        resp = self.client.api.call('/favorites', params={'type': t, 'n': n})
 
         f = []
-        for favorite in resp["data"]:
+        for favorite in resp['data']:
             f.append(Favorite(self.client, favorite))
 
         return f
 
-    def remove_favorite(self, id):
-        '''
+    def remove_favorite(self, favorite_id):
+        """
         Used to remove a favorite via id
 
-            id, string
-            ID of the favorite object
+        :param favorite_id: ID of the favorite object
+        :type favorite_id: str
+        """
+        self.client.api.call(f'/favorites/{favorite_id}', 'DELETE')
 
-        Returns void
-        '''
-
-        self.client.api.call("/favorites/"+id, "DELETE")
-
-    def get_favorite(self, id):
-        '''
+    def get_favorite(self, favorite_id):
+        """
         Used to get favorite via id
 
-            id, string
-            ID of the favorite object
+        :param favorite_id: ID of the favorite object
+        :type favorite_id: str
 
-        Returns Favorite object
-        '''
-
-        resp = self.client.api.call("/favorites/"+id)
+        :return: Favorite object
+        :rtype: Favorite
+        """
+        resp = self.client.api.call(f'/favorites/{favorite_id}')
         return Favorite(self.client, resp)
 
     def favorite(self):
         raise AttributeError("'CurrentUser' object has no attribute 'favorite'")
 
-    def __init__(self, client, obj):
-        self.onlineFriends = []
-        self.offlineFriends = []
-        self.friends = self.onlineFriends + self.offlineFriends
-
-        super().__init__(client)
-        self.unique += [
-            "feature",
-            "hasEmail"
-        ]
-
-        self.types.update({
-            "feature": Feature
-        })
-
-        self._assign(obj)
-
 
 class Feature(BaseObject):
-    objType = "Feature"
+    objType = 'Feature'
 
     def __init__(self, client, obj):
         super().__init__(client)
@@ -333,148 +313,120 @@ class Feature(BaseObject):
 
 
 class PastDisplayName(BaseObject):
-    objType = "PastDisplayName"
+    objType = 'PastDisplayName'
 
     def __init__(self, client, obj):
         super().__init__(client)
         self.only += [
-            "displayName",
-            "updated_at"
+            'displayName',
+            'updated_at',
         ]
 
         self._assign(obj)
 
-# World objects
-
 
 class LimitedWorld(BaseObject):
-    objType = "LimitedWorld"
-
-    def author(self):
-        '''
-        Used to get author of the world
-        Returns User object
-        '''
-
-        resp = self.client.api.call("/users/"+self.authorId)
-        return User(self.client, resp["data"])
-
-    def favorite(self):
-        '''
-        Used to favorite this world object
-        Returns Favorite object
-        '''
-
-        resp = self.client.api.call("/favorites", "POST", params={"type": types.FavoriteType.World,
-                                                                  "favoriteId": self.id})
-        return Favorite(self.client, resp["data"])
+    objType = 'LimitedWorld'
 
     def __init__(self, client, obj=None):
         super().__init__(client)
         self.authorId = None
         self.unique += [
-            "visits",
-            "occupants",
-            "labsPublicationDate"
+            'visits',
+            'occupants',
+            'labsPublicationDate',
         ]
 
         self.arrTypes.update({
-            "unityPackages": UnityPackage
+            'unityPackages': UnityPackage,
         })
 
         if obj is not None:
             self._assign(obj)
 
+    def author(self):
+        """
+        Used to get author of the world
+        :return: User object
+        :rtype: User
+        """
+        resp = self.client.api.call(f'/users/{self.authorId}')
+        return User(self.client, resp['data'])
+
+    def favorite(self):
+        """
+        Used to favorite this world object
+        :return: Favorite object
+        :rtype: Favorite
+        """
+        resp = self.client.api.call('/favorites', 'POST', params={'type': types.FavoriteType.World, 'favoriteId': self.id})
+        return Favorite(self.client, resp['data'])
+
 
 class World(LimitedWorld):
-    objType = "World"
-
-    def fetch_instance(self, id):
-        '''
-        Used to get instance of this world via id
-
-            id, string
-            ID of instance
-
-        Returns Instance object
-        '''
-
-        resp = self.client.api.call("/instances/"+self.id+":"+id)
-        return Instance(self.client, resp["data"])
+    objType = 'World'
 
     def __init__(self, client, obj):
         super().__init__(client)
 
         self.unique += [
-            "namespace",
-            "previewYoutubeId",
-            "instances"
+            'namespace',
+            'previewYoutubeId',
+            'instances',
         ]
 
         self._assign(obj)
 
+    def fetch_instance(self, instance_id):
+        """
+        Used to get instance of this world via id
+
+        :param instance_id: ID of instance
+        :type instance_id: str
+
+        :return: Instance object
+        :rtype: Instance
+        """
+        resp = self.client.api.call(f'/instances/{self.id}:{instance_id}')
+        return Instance(self.client, resp['data'])
+
 
 class Location:
-    objType = "Location"
+    objType = 'Location'
 
     def __init__(self, client, location):
         if not isinstance(location, str):
-            raise TypeError("Expected string, got "+str(type(location)))
+            raise TypeError(f"Expected string, got {type(location)}")
 
         self.nonce = None
-        self.type = "public"
-        self.name = ""
+        self.type = 'public'
+        self.name = ''
         self.worldId = None
         self.userId = None
         self.location = location
         self.client = client
 
-        if ":" in location:
-            self.worldId, location = location.split(":")
+        if ':' in location:
+            self.worldId, location = location.split(':')
 
         originalLocation = location
 
         try:
-            if "~" in location:
-                if location.count("~") == 2:
-                    self.name, t, nonce = location.split("~")
-                    self.type, self.userId = t[:-1].split("(")
-                    self.nonce = nonce.split("(")[1][:-1]
-                elif location.count("~") == 1:
-                    self.name, self.type = location.split("~")  # Needs testing, https://github.com/vrchatapi/VRChatPython/issues/17
+            if '~' in location:
+                if location.count('~') == 2:
+                    self.name, t, nonce = location.split('~')
+                    self.type, self.userId = t[:-1].split('(')
+                    self.nonce = nonce.split('(')[1][:-1]
+                elif location.count('~') == 1:
+                    self.name, self.type = location.split('~')  # Needs testing, https://github.com/vrchatapi/VRChatPython/issues/17
             else:
                 self.name = location
         except Exception as e:  # https://github.com/vrchatapi/VRChatPython/issues/17
-            raise GeneralError("Exception occured while trying to parse location string ({})! Please open an issue on github! {}".format(originalLocation, e))
+            raise GeneralError(f"Exception occured while trying to parse location string ({originalLocation})! Please open an issue on github! {e}")
 
 
 class Instance(BaseObject):
-    objType = "Instance"
-
-    def world(self):
-        '''
-        Used to get the world of this instance
-        Returns World object
-        '''
-
-        resp = self.client.api.call("/worlds/"+self.worldId)
-        return World(self.client, resp["data"])
-
-    def short_name(self):
-        '''
-        Used to get shorturl of the instance
-        Returns string
-        '''
-
-        return "https://vrchat.com/i/"+self.shortName
-
-    def join(self):
-        '''
-        "Joins" the instance
-        Returns void
-        '''
-
-        self.client.api.call("/joins", "PUT", json={"worldId": self.location.location})
+    objType = 'Instance'
 
     def __init__(self, client, obj):
         super().__init__(client)
@@ -482,72 +434,88 @@ class Instance(BaseObject):
         self.location = None
         self.shortName = None
         self.unique += [
-            "n_users",
-            "instanceId",
-            "shortName"
+            'n_users',
+            'instanceId',
+            'shortName',
         ]
 
         self.types.update({
-            "id": Location,
-            "location": Location,
-            "instanceId": Location,
+            'id': Location,
+            'location': Location,
+            'instanceId': Location,
         })
 
         self._assign(obj)
 
-# unityPackage objects
+    def world(self):
+        """
+        Used to get the world of this instance
+        :return: World object
+        :rtype: World
+        """
+        resp = self.client.api.call(f'/worlds/{self.worldId}')
+        return World(self.client, resp['data'])
+
+    def short_name(self):
+        """
+        Used to get shorturl of the instance
+        :rtype: str
+        """
+        return f'https://vrchat.com/i/{self.shortName}'
+
+    def join(self):
+        """
+        'Joins' the instance
+        """
+        self.client.api.call('/joins', 'PUT', json={'worldId': self.location.location})
 
 
 class UnityPackage(BaseObject):
-    objType = "UnityPackage"
+    objType = 'UnityPackage'
 
     def __init__(self, client, obj):
         super().__init__(client)
         self.unique += [
-            "id",
-            "platform",
-            "assetVersion",
-            "unitySortNumber"
+            'id',
+            'platform',
+            'assetVersion',
+            'unitySortNumber',
         ]
 
         self._assign(obj)
 
-# Notification objects
-
 
 class Notification(BaseObject):
-    objType = "Notification"
+    objType = 'Notification'
 
     def __init__(self, client, obj):
         super().__init__(client)
         self.unique += [
-            "senderUsername",
-            "senderUserId"
+            'senderUsername',
+            'senderUserId',
         ]
 
         self.types.update({
-            "details": NotificationDetails
+            'details': NotificationDetails,
         })
 
         self._assign(obj)
 
 
 class NotificationDetails(BaseObject):
-    objType = "NotificationDetails"
+    objType = 'NotificationDetails'
 
     def __init__(self, client, obj):
         super().__init__(client)
         self.types.update({
-            "worldId": Location
+            'worldId': Location,
         })
 
         self._assign(obj)
 
-# Misc
-
 
 class Favorite(BaseObject):
-    objType = "Favorite"
+    objType = 'Favorite'
 
     def __init__(self, client, obj):
         super().__init__(client)
@@ -555,10 +523,10 @@ class Favorite(BaseObject):
         self.favoriteId = None
 
         self.unique += [
-            "id",
-            "type",
-            "favoriteId",
-            "tags"
+            'id',
+            'type',
+            'favoriteId',
+            'tags',
         ]
 
         self._assign(obj)

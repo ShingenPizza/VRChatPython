@@ -1,87 +1,92 @@
-from vrcpy._hardtyping import *
-from vrcpy.request import *
-from vrcpy.errors import AlreadyLoggedInError, RequiresTwoFactorAuthError
-from vrcpy import objects
-
-from datetime import datetime
-
-import urllib
 import base64
-import time
+from typing import List
+import urllib.parse
+
+from vrcpy import objects
+from vrcpy.errors import AlreadyLoggedInError
+from vrcpy.request import Call
 
 
 class Client:
-    '''
+    """
     Main client interface for VRC
+    """
 
-        verify, boolean
-        If should verify ssl certificates on requests
-    '''
+    def __init__(self, verify=True):
+        """
+        :param verify: If should verify ssl certificates on requests
+        :type verify: bool
+        """
+        self.api = Call(verify)
+        self.loggedIn = False
+        self.me = None
 
-    # Log
+        self.needsVerification = False
+        self.log_to_console = False
 
-    def _log(self, log):  # TODO: Finish logging, also, dunno how I'm gonna do this yet
-        dt = datetime.now().strftime("%d/%m - %H:%M:%S")
+    def login(self, username=None, password=None, b64=None):
+        """
+        Used to initialize the client for use
 
-        if self.log_to_console:
-            print("[%s] %s" % (dt, log))
+        :param username: Username of VRC account
+        :type username: str
 
-    # User calls
+        :param password: Password of VRC account
+        :type password: str
+        """
+        if self.loggedIn:
+            raise AlreadyLoggedInError("Client is already logged in")
+
+        if b64 is None:
+            if username is None or password is None:
+                raise Exception("You have to provide either username and password directly, or a base64-encoded auth 'token'.")
+            b64 = base64.b64encode(f'{username}:{password}'.encode()).decode()
+        elif username is not None or password is not None:
+            raise Exception("You have to provide either username and password directly, or a base64-encoded auth 'token'.")
+
+        resp = self.api.call('/auth/user', headers={'Authorization': f'Basic {b64}'}, no_auth=True)
+
+        self.api.set_auth(b64)
+        self.api.session.cookies.set('auth', resp['response'].cookies['auth'])
+
+        self.me = objects.CurrentUser(self, resp['data'])
+        self.loggedIn = True
+
+    def logout(self):
+        """
+        Closes client session, invalidates auth cookie
+        """
+        self.api.call('/logout', 'PUT')
+        self.api.new_session()
+        self.loggedIn = False
 
     def fetch_me(self):
-        '''
+        """
         Used to refresh client.me
-        Returns CurrentUser object
-        '''
 
-        resp = self.api.call("/auth/user")
-
-        self.me = objects.CurrentUser(self, resp["data"])
+        :return: CurrentUser object
+        :rtype: objects.CurrentUser
+        """
+        resp = self.api.call('/auth/user')
+        self.me = objects.CurrentUser(self, resp['data'])
         return self.me
 
-    def fetch_full_friends(self, offline=False, n=0, offset=0):
-        '''
-        Used to get friends of current user
-        !! This function uses possibly lot of calls, use with caution
-
-            offline, boolean
-            Get offline friends instead of online friends
-
-            n, integer
-            Number of friends to return (0 for all)
-
-            offset, integer
-            Skip first <offset> friends
-
-        Returns list of User objects
-        '''
-
-        lfriends = self.fetch_friends(offline, n, offset)
-        friends = []
-
-        # Get friends
-        for friend in lfriends:
-            time.sleep(0)
-            friends.append(friend.fetch_full())
-
-        return friends
-
     def fetch_friends(self, offline=False, n=0, offset=0):
-        '''
+        """
         Used to get friends of current user
 
-            offline, boolean
-            Get offline friends instead of online friends
+        :param offline: Get offline friends instead of online friends
+        :type offline: bool
 
-            n, integer
-            Number of friends to return (0 for all)
+        :param n: Number of friends to return (0 for all)
+        :type n: int
 
-            offset, integer
-            Skip first <offset> friends
+        :param offset: Skip first <offset> friends
+        :type offset: int
 
-        Returns list of LimitedUser objects
-        '''
-
+        :return: list of LimitedUser objects
+        :rtype: List[objects.LimitedUser]
+        """
         friends = []
 
         while True:
@@ -89,302 +94,180 @@ class Client:
             if n and n - len(friends) < 100:
                 newn = n - len(friends)
 
-            last_count = 0
+            resp = self.api.call('/auth/user/friends', params={'offset': offset, 'offline': offline, 'n': newn})
 
-            resp = self.api.call("/auth/user/friends",
-                                 params={"offset": offset, "offline": offline, "n": newn})
+            friends += [objects.LimitedUser(self, friend) for friend in resp['data']]
 
-            for friend in resp["data"]:
-                last_count += 1
-                friends.append(objects.LimitedUser(self, friend))
-
-            if last_count < 100:
+            if len(resp['data']) < 100:
                 break
 
             offset += 100
 
         return friends
 
-    def fetch_user_by_id(self, id):
-        '''
+    def fetch_full_friends(self, offline=False, n=0, offset=0):
+        """
+        Used to get friends of current user
+        !! This function uses possibly lot of calls, use with caution
+
+        :param offline: Get offline friends instead of online friends
+        :type offline: bool
+
+        :param n: Number of friends to return (0 for all)
+        :type n: int
+
+        :param offset: Skip first <offset> friends
+        :type offset: int
+
+        :return: list of User objects
+        :rtype: List[objects.User]
+        """
+        lfriends = self.fetch_friends(offline=offline, n=n, offset=offset)
+        friends = []
+
+        # Get friends
+        for friend in lfriends:
+            friends.append(friend.fetch_full())
+
+        return friends
+
+    def fetch_user_by_id(self, user_id):
+        """
         Used to get a user via id
 
-            id, string
-            UserId of the user
+        :param user_id: UserId of the user
+        :type user_id: str
 
-        Returns User object
-        '''
-
-        resp = self.api.call("/users/"+id)
-        return objects.User(self, resp["data"])
+        :return: User object
+        :rtype: objects.User
+        """
+        resp = self.api.call(f'/users/{user_id}')
+        return objects.User(self, resp['data'])
 
     def fetch_user_by_name(self, name):
-        '''
-        Used to get a user via id
+        """
+        Used to get a user via name
 
-            name, string
-            Name of the user
+        :param name: Name of the user
+        :type name: str
 
-        Returns User object
-        '''
+        :return: User object
+        :rtype: objects.User
+        """
+        resp = self.api.call(f'/users/{urllib.parse.quote_plus(name)}/name')
+        return objects.User(self, resp['data'])
 
-        resp = self.api.call("/users/"+urllib.parse.quote_plus(name)+"/name")
-        return objects.User(self, resp["data"])
-
-    # Avatar calls
-
-    def fetch_avatar(self, id):
-        '''
+    def fetch_avatar(self, avatar_id):
+        """
         Used to get avatar via id
 
-            id, string
-            AvatarId of the avatar
+        :param avatar_id: AvatarId of the avatar
+        :type avatar_id: str
 
-        Returns Avatar object
-        '''
+        :return: Avatar object
+        :rtype: objects.Avatar
+        """
+        resp = self.api.call(f'/avatars/{avatar_id}')
+        return objects.Avatar(self, resp['data'])
 
-        resp = self.api.call("/avatars/"+id)
-        return objects.Avatar(self, resp["data"])
-
-    def list_avatars(self, user: oString = None, featured: oBoolean = None, tag: oString = None,
-                     userId: oString = None, n: oInteger = None, offset: oInteger = None, order: oString = None,
-                     releaseStatus: oString = None, sort: oString = None, maxUnityVersion: oString = None,
-                     minUnityVersion: oString = None, maxAssetVersion: oString = None, minAssetVersion: oString = None,
-                     platform: oString = None):
-        '''
+    def list_avatars(self, user=None, featured=None, tag=None, userId=None, n=None, offset=None, order=None, releaseStatus=None, sort=None,
+                     maxUnityVersion=None, minUnityVersion=None, maxAssetVersion=None, minAssetVersion=None, platform=None):
+        """
         Used to get list of avatars
 
-            user, string
-            Type of user (me, friends)
+        :param user: Type of user (me, friends)
+        :type user: str
 
-            featured, boolean
-            If the avatars are featured
+        :param featured: If the avatars are featured
+        :type featured: bool
 
-            tag, string list
-            List of tags the avatars have
+        :param tag: List of tags the avatars have
+        :type tag: str list
 
-            userId, string
-            ID of the user that made the avatars
+        :param userId: ID of the user that made the avatars
+        :type userId: str
 
-            n, integer
-            Number of avatars to return
+        :param n: Number of avatars to return
+        :type n: int
 
-            offset, integer
-            Skip first <offset> avatars
+        :param offset: Skip first <offset> avatars
+        :type offset: int
 
-            order, string
-            Sort <sort> by "descending" or "ascending" order
+        :param order: Sort <sort> by "descending" or "ascending" order
+        :type order: str
 
-            releaseStatus, string
-            ReleaseStatus of avatars
+        :param releaseStatus: ReleaseStatus of avatars
+        :type releaseStatus: str
 
-            sort, string
-            Sort by "created", "updated", "order", "_created_at", "_updated_at"
+        :param sort: Sort by "created", "updated", "order", "_created_at", "_updated_at"
+        :type sort: str
 
-            maxUnityVersion, string
-            Max version of unity the avatars were uploaded from
+        :param maxUnityVersion: Max version of unity the avatars were uploaded from
+        :type maxUnityVersion: str
 
-            minUnityVersion, string
-            Min version of unity the avatars were uploaded from
+        :param minUnityVersion: Min version of unity the avatars were uploaded from
+        :type minUnityVersion: str
 
-            maxAssetVersion, string
-            Max of 'asset version' of the avatars
+        :param maxAssetVersion: Max of 'asset version' of the avatars
+        :type maxAssetVersion: str
 
-            minAssetVersion, string
-            Min of 'asset version' of the avatars
+        :param minAssetVersion: Min of 'asset version' of the avatars
+        :type minAssetVersion: str
 
-            platform, string
-            Unity platform avatars were uploaded from
+        :param platform: Unity platform avatars were uploaded from
+        :type platform: str
 
-        Returns list of Avatar objects
-        '''
-
+        :return: list of Avatar objects
+        :rtype: List[objects.Avatar]
+        """
         p = {}
 
         if user:
-            p["user"] = user
+            p['user'] = user
         if featured:
-            p["featured"] = featured
+            p['featured'] = featured
         if tag:
-            p["tag"] = tag
+            p['tag'] = tag
         if userId:
-            p["userId"] = userId
+            p['userId'] = userId
         if n:
-            p["n"] = n
+            p['n'] = n
         if offset:
-            p["offset"] = offset
+            p['offset'] = offset
         if order:
-            p["order"] = order
+            p['order'] = order
         if releaseStatus:
-            p["releaseStatus"] = releaseStatus
+            p['releaseStatus'] = releaseStatus
         if sort:
-            p["sort"] = sort
+            p['sort'] = sort
         if maxUnityVersion:
-            p["maxUnityVersion"] = maxUnityVersion
+            p['maxUnityVersion'] = maxUnityVersion
         if minUnityVersion:
-            p["minUnityVersion"] = minUnityVersion
+            p['minUnityVersion'] = minUnityVersion
         if maxAssetVersion:
-            p["maxAssetVersion"] = maxAssetVersion
+            p['maxAssetVersion'] = maxAssetVersion
         if minAssetVersion:
-            p["minAssetVersion"] = minAssetVersion
+            p['minAssetVersion'] = minAssetVersion
         if platform:
-            p["platform"] = platform
+            p['platform'] = platform
 
-        resp = self.api.call("/avatars", params=p)
+        resp = self.api.call('/avatars', params=p)
 
         avatars = []
-        for avatar in resp["data"]:
+        for avatar in resp['data']:
             avatars.append(objects.Avatar(self, avatar))
 
         return avatars
 
-    # World calls
-
-    def fetch_world(self, id):
-        '''
+    def fetch_world(self, world_id):
+        """
         Used to get world via id
 
-            id, string
-            ID of the world
+        :param world_id: ID of the world
+        :type world_id: str
 
-        Returns World object
-        '''
-
-        resp = self.api.call("/worlds/"+id)
-        return objects.World(self, resp["data"])
-
-    def logout(self):
-        '''
-        Closes client session, invalidates auth cookie
-        Returns void
-        '''
-
-        self.api.call("/logout", "PUT")
-
-        self.api.new_session()
-        self.loggedIn = False
-
-    def login(self, username, password):
-        '''
-        Used to initialize the client for use
-
-            username, string
-            Username of VRC account
-
-            password, string
-            Password of VRC account
-
-        Returns void
-        '''
-
-        if self.loggedIn:
-            raise AlreadyLoggedInError("Client is already logged in")
-
-        auth = username+":"+password
-        auth = str(base64.b64encode(auth.encode()))[2:-1]
-
-        resp = self.api.call("/auth/user", headers={"Authorization": "Basic "+auth}, no_auth=True)
-
-        self.api.set_auth(auth)
-        self.api.session.cookies.set("auth", resp["response"].cookies["auth"])
-
-        self.me = objects.CurrentUser(self, resp["data"])
-        self.loggedIn = True
-
-    def loginb64(self, b64):
-        '''
-        Used to initialize the client for use
-
-            b64, string
-            Base64 Encoding of VRC account credentials
-
-        Returns void
-        '''
-
-        if self.loggedIn:
-            raise AlreadyLoggedInError("Client is already logged in")
-
-        resp = self.api.call("/auth/user", headers={"Authorization": "Basic "+b64}, no_auth=True)
-
-        self.api.set_auth(b64)
-        self.api.session.cookies.set("auth", resp["response"].cookies["auth"])
-
-        self.me = objects.CurrentUser(self, resp["data"])
-        self.loggedIn = True
-
-    def login2fa(self, username, password, code=None, verify=False):
-        '''
-        Used to initialize client for use (for accounts with 2FactorAuth)
-
-            username, string
-            Username of VRC account
-
-            password, string
-            Password of VRC account
-
-            code, string
-            2FactorAuth code
-
-            verify, boolean
-            Whether to verify 2FactorAuth code, or leave for later
-
-        This will ignore the RequiresTwoFactorAuthError exception, so be careful!
-        If kwarg verify is False, Client.verify2fa() must be called after
-        '''
-
-        if self.loggedIn:
-            raise AlreadyLoggedInError("Client is already logged in")
-
-        auth = username+":"+password
-        auth = str(base64.b64encode(auth.encode()))[2:-1]
-
-        resp = None
-
-        try:
-            resp = self.api.call(
-                "/auth/user", headers={"Authorization": "Basic "+auth}, no_auth=True, verify=False)
-            raise_for_status(resp)
-
-            self.api.set_auth(auth)
-            self.api.session.cookies.set("auth", resp["response"].cookies["auth"])
-
-            self.me = objects.CurrentUser(self, resp["data"])
-            self.loggedIn = True
-        except RequiresTwoFactorAuthError:
-            self.api.set_auth(auth)
-            self.api.session.cookies.set("auth", resp["response"].cookies["auth"])  # Auth cookieeee
-            if verify:
-                self.needsVerification = True
-                self.verify2fa(code)
-            else:
-                self.needsVerification = True
-
-    def verify2fa(self, code):
-        '''
-        Used to finish initializing client for use after Client.login2fa()
-
-            code, string
-            2FactorAuth code
-        '''
-
-        if self.loggedIn:
-            raise AlreadyLoggedInError("Client is already logged in")
-
-        self.api.call(
-            "/auth/twofactorauth/{}/verify".format("totp" if len(code) == 6 else "otp"),
-            "POST", json={"code": code}
-        )
-
-        resp = self.api.call("/auth/user")
-
-        self.me = objects.CurrentUser(self, resp["data"])
-        self.loggedIn = True
-        self.needsVerification = False
-
-    def __init__(self, verify=True):
-        self.api = Call(verify)
-        self.loggedIn = False
-        self.me = None
-
-        self.needsVerification = False
-        self.log_to_console = False
+        :return: World object
+        :rtype: objects.World
+        """
+        resp = self.api.call(f'/worlds/{world_id}')
+        return objects.World(self, resp['data'])
