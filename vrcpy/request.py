@@ -104,14 +104,13 @@ class Call:
             params = {}
         if json is None:
             json = {}
-        headers['user-agent'] = ''
+        headers['User-Agent'] = 'vrcpy modified by ShingenPizza'
 
         if no_auth:
             return self._call(path, method, headers, params, json, verify)
 
         if self.b64_auth is None:
             raise NotAuthenticated("Tried to do authenticated request without setting b64 auth (Call.set_auth(b64_auth))!")
-        headers['Authorization'] = f'Basic {self.b64_auth}'
 
         if self.apiKey is None:
             resp = self.session.get('https://api.vrchat.cloud/api/1/config', verify=self.verify)
