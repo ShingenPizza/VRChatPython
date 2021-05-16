@@ -9,8 +9,11 @@ from vrcpy.errors import (
 
 
 def raise_for_status(resp):
-    if isinstance(resp['data'], bytes):
-        resp['data'] = jsondecoder.loads(resp['data'].decode())
+    try:
+        if isinstance(resp['data'], bytes):
+            resp['data'] = jsondecoder.loads(resp['data'].decode())
+    except jsondecoder.decoder.JSONDecodeError:
+        pass
 
     def handle_400():
         if 'error' in resp['data']:
@@ -29,10 +32,7 @@ def raise_for_status(resp):
 
     def handle_404():
         if isinstance(resp['data'], bytes):
-            try:
-                msg = jsondecoder.loads(resp['data'].decode())['error']
-            except Exception:
-                msg = str(resp['data'].decode()).split('"error":"')[1].split('","')[0]
+            msg = str(resp['data'].decode()).split('"error":"')[1].split('","')[0]
         else:
             msg = resp['data']['error']['message']
 
@@ -41,15 +41,23 @@ def raise_for_status(resp):
     def handle_429():
         raise RateLimitError("You are being rate-limited.")
 
+    def handle_502():
+        raise requests.exceptions.ConnectionError("Bad Gateway.")
+
     def handle_503():
         raise ServiceUnavailable(resp['data']['error']['message'])
+
+    def handle_504():
+        raise requests.exceptions.ConnectionError("Gateway Time-out.")
 
     switch = {
         400: handle_400,
         401: handle_401,
         404: handle_404,
         429: handle_429,
+        502: handle_502,
         503: handle_503,
+        504: handle_504,
     }
 
     if resp['status'] in switch:
@@ -61,7 +69,7 @@ def raise_for_status(resp):
 
 
 class Call:
-    call_retries = 1
+    call_retries = 3
 
     def __init__(self, verify=True):
         self.verify = verify
@@ -85,14 +93,15 @@ class Call:
             params = {}
         if json is None:
             json = {}
+        retries = retries or self.call_retries
         resp = None
-        for tri in range(0, (retries or self.call_retries) + 1):
+        for attempt in range(retries + 1):
             try:
                 resp = self._call_wrap(path, method, headers, params, json, no_auth, verify)
                 break
             # Gosh darnit VRC team, why've you done this!
             except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
-                if tri == (retries or self.call_retries):
+                if attempt >= retries:
                     raise requests.exceptions.ConnectionError(f"{e} ({retries} retries)")
 
         return resp
@@ -158,7 +167,8 @@ class Call:
             json = {}
         if self.apiKey is None:
             resp = requests.get('https://api.vrchat.cloud/api/1/config', headers=headers, verify=self.verify)
-            assert resp.status_code == 200
+            if resp.status_code != 200:
+                raise requests.exceptions.ConnectionError(f"Response code {resp.status_code}")
 
             j = resp.json()
             try:
