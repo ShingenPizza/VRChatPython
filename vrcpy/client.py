@@ -271,3 +271,13 @@ class Client:
         """
         resp = self.api.call(f'/worlds/{world_id}')
         return objects.World(self, resp['data'])
+
+    def fetch_notifications(self):
+        """
+        Used to get notifications
+
+        :return: list of Notification objects
+        :rtype: List[objects.Notification]
+        """
+        resp = self.api.call('/auth/user/notifications')
+        return [objects.Notification(self, n) for n in resp['data']]
