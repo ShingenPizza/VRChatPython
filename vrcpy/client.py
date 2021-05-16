@@ -19,7 +19,7 @@ class Client:
         """
         self.api = Call(verify)
         self.loggedIn = False
-        self.me = None
+        self.me = None  # type: objects.CurrentUser
 
         self.needsVerification = False
         self.log_to_console = False

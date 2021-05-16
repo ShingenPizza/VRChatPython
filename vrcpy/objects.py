@@ -1,4 +1,4 @@
-
+import json
 from typing import List
 
 from vrcpy import types
@@ -9,11 +9,23 @@ class BaseObject:
     objType = 'Base'
 
     def __init__(self, client):
+        """
+        :param client: Client object
+        :type client: vrcpy.Client
+        """
+        self._restricted_names = {  # Set of keys that should not be overwritten by the data received from the API
+            '_restricted_names',
+            '_types',
+            '_array_types',
+            '_needs_decoding',
+            '_dict',
+            'client',
+        }
+        self._types = {}  # Dictionary of what keys have special types
+        self._array_types = {}  # Dictionary of what keys are arrays with special types
+        self._needs_decoding = set()  # Set of keys for which values are raw json strings that should be decoded first
+
         self.id = None
-        self.unique = []  # Keys that identify this object
-        self.only = []  # List of all keys in this object, if used
-        self.types = {}  # Dictionary of what keys have special types
-        self.arrTypes = {}  # Dictionary of what keys are arrays with special types
         self.client = client
 
         self._dict = {}  # Dictionary that is assigned
@@ -22,30 +34,22 @@ class BaseObject:
         self._objectIntegrity(obj)
 
         for key in obj:
-            if key in self.types:
-                setattr(self, key, self.types[key](self.client, obj[key]))
-            elif key in self.arrTypes:
-                arr = []
-                for o in obj[key]:
-                    arr.append(self.arrTypes[key](self.client, o))
-                setattr(self, key, arr)
+            val = obj[key]
+            if key in self._needs_decoding:
+                val = json.JSONDecoder().decode(val)
+            if key in self._types:
+                setattr(self, key, self._types[key](self.client, val))
+            elif key in self._array_types:
+                setattr(self, key, [self._array_types[key](self.client, o) for o in val])
             else:
-                setattr(self, key, obj[key])
+                setattr(self, key, val)
 
         self._dict = obj
 
     def _objectIntegrity(self, obj):
-        if not self.only:
-            for key in self.unique:
-                if key not in obj:
-                    raise IntegrityError(f"Object does not have unique key ({key}) for {self.objType} (Class definition may be outdated, please make an issue on github)")
-        else:
-            for key in obj:
-                if key not in self.only:
-                    raise IntegrityError(f"Object has key not found in {self.objType} (Class definition may be outdated, please make an issue on github)")
-            for key in self.only:
-                if key not in obj:
-                    raise IntegrityError(f"Object does not have requred key ({key}) for {self.objType} (Class definition may be outdated, please make an issue on github)")
+        for key in obj:
+            if key in self._restricted_names:
+                raise IntegrityError(f"{self.objType} object has key {key} found in _restricted_names. VRCpy needs an adjustment.")
 
 
 class Avatar(BaseObject):
@@ -53,15 +57,16 @@ class Avatar(BaseObject):
 
     def __init__(self, client, obj):
         super().__init__(client)
-        self.authorId = None
-        self.unique += [
-            'authorId',
-            'authorName',
-            'version',
-            'name',
-        ]
 
-        self.arrTypes.update({
+        self.name = None  # type: str
+        self.description = None  # type: str
+        self.version = None  # type: int
+        self.releaseStatus = None  # type: str
+        self.authorId = None  # type: str
+        self.authorName = None  # type: str
+        self.tags = []
+
+        self._array_types.update({
             'unityPackages': UnityPackage,
         })
 
@@ -97,19 +102,21 @@ class LimitedUser(BaseObject):
 
     def __init__(self, client, obj=None):
         super().__init__(client)
-        self.unique += [
-            'isFriend',
-        ]
 
-        self.types.update({
+        self.displayName = None  # type: str
+        self.status = None  # type: str
+        self.statusDescription = None  # type: str
+        self.isFriend = None  # type: bool
+        self.location = None  # type: Location
+        self.instanceId = None  # type: Location
+
+        self._types.update({
             'location': Location,
             'instanceId': Location,
         })
 
         if obj is not None:
             self._assign(obj)
-        if not hasattr(self, 'bio'):
-            self.bio = ''
 
     def fetch_full(self):
         """
@@ -164,9 +171,9 @@ class User(LimitedUser):
 
     def __init__(self, client, obj=None):
         super().__init__(client)
-        self.unique += [
-            'allowAvatarCopying',
-        ]
+
+        self.state = None  # type: str
+        self.allowAvatarCopying = None  # type: bool
 
         if obj is not None:
             self._assign(obj)
@@ -176,17 +183,14 @@ class CurrentUser(User):
     objType = 'CurrentUser'
 
     def __init__(self, client, obj):
-        self.onlineFriends = []
-        self.offlineFriends = []
-        self.friends = []
-
         super().__init__(client)
-        self.unique += [
-            'feature',
-            'hasEmail',
-        ]
 
-        self.types.update({
+        self.friends = []
+        self.onlineFriends = []
+        self.activeFriends = []
+        self.offlineFriends = []
+
+        self._types.update({
             'feature': Feature,
         })
 
@@ -317,10 +321,9 @@ class PastDisplayName(BaseObject):
 
     def __init__(self, client, obj):
         super().__init__(client)
-        self.only += [
-            'displayName',
-            'updated_at',
-        ]
+
+        self.displayName = None  # type: str
+        self.updated_at = None  # type: str
 
         self._assign(obj)
 
@@ -330,14 +333,10 @@ class LimitedWorld(BaseObject):
 
     def __init__(self, client, obj=None):
         super().__init__(client)
-        self.authorId = None
-        self.unique += [
-            'visits',
-            'occupants',
-            'labsPublicationDate',
-        ]
 
-        self.arrTypes.update({
+        self.authorId = None  # type: str
+
+        self._array_types.update({
             'unityPackages': UnityPackage,
         })
 
@@ -369,11 +368,10 @@ class World(LimitedWorld):
     def __init__(self, client, obj):
         super().__init__(client)
 
-        self.unique += [
-            'namespace',
-            'previewYoutubeId',
-            'instances',
-        ]
+        self.name = None  # type: str
+        self.description = None  # type: str
+        self.authorName = None  # type: str
+        self.releaseStatus = None  # type: str
 
         self._assign(obj)
 
@@ -395,15 +393,21 @@ class Location:
     objType = 'Location'
 
     def __init__(self, client, location):
+        """
+        :param client: Client object
+        :type client: vrcpy.Client
+        :param location: location string
+        :type location: str
+        """
         if not isinstance(location, str):
             raise TypeError(f"Expected string, got {type(location)}")
 
-        self.nonce = None
-        self.type = 'public'
-        self.name = ''
-        self.worldId = None
-        self.userId = None
-        self.location = location
+        self.nonce = None  # type: str
+        self.type = 'public'  # type: str
+        self.name = ''  # type: str
+        self.worldId = None  # type: str
+        self.userId = None  # type: str
+        self.location = location  # type: str
         self.client = client
 
         if ':' in location:
@@ -430,19 +434,19 @@ class Instance(BaseObject):
 
     def __init__(self, client, obj):
         super().__init__(client)
-        self.worldId = None
-        self.location = None
-        self.shortName = None
-        self.unique += [
-            'n_users',
-            'instanceId',
-            'shortName',
-        ]
 
-        self.types.update({
+        self.worldId = None  # type: str
+        self.location = None  # type: Location
+        self.type = None  # type: str
+        self.shortName = None  # type: str
+        self.n_users = None  # type: int
+        self.capacity = None  # type: int
+        self.instanceId = None  # type: str
+        self.name = None  # type: str
+
+        self._types.update({
             'id': Location,
             'location': Location,
-            'instanceId': Location,
         })
 
         self._assign(obj)
@@ -475,12 +479,6 @@ class UnityPackage(BaseObject):
 
     def __init__(self, client, obj):
         super().__init__(client)
-        self.unique += [
-            'id',
-            'platform',
-            'assetVersion',
-            'unitySortNumber',
-        ]
 
         self._assign(obj)
 
@@ -490,12 +488,19 @@ class Notification(BaseObject):
 
     def __init__(self, client, obj):
         super().__init__(client)
-        self.unique += [
-            'senderUsername',
-            'senderUserId',
-        ]
 
-        self.types.update({
+        self.senderUserId = None  # type: str
+        self.senderUsername = None  # type: str
+        self.type = None  # type: str
+        self.message = None  # type: str
+        self.details = None  # type: str
+        self.seen = None  # type: bool
+        self.created_at = None  # type: str
+
+        self._needs_decoding |= {
+            'details',
+        }
+        self._types.update({
             'details': NotificationDetails,
         })
 
@@ -507,7 +512,16 @@ class NotificationDetails(BaseObject):
 
     def __init__(self, client, obj):
         super().__init__(client)
-        self.types.update({
+
+        # invite
+        self.worldId = None  # type: str
+        self.worldName = None  # type: str
+        self.inviteMessage = None  # type: str
+
+        # requestInvite
+        self.requestMessage = None  # type: str
+
+        self._types.update({
             'worldId': Location,
         })
 
@@ -519,14 +533,8 @@ class Favorite(BaseObject):
 
     def __init__(self, client, obj):
         super().__init__(client)
+
         self.type = None
         self.favoriteId = None
-
-        self.unique += [
-            'id',
-            'type',
-            'favoriteId',
-            'tags',
-        ]
 
         self._assign(obj)
