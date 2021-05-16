@@ -28,7 +28,7 @@ class AlreadyLoggedInError(Exception):
     pass
 
 
-class IntegretyError(Exception):
+class IntegrityError(Exception):
     # When an object doesn't pass its integrety checks
     pass
 

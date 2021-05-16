@@ -5,7 +5,7 @@ import time
 import websocket
 
 from vrcpy import Client, objects
-from vrcpy.errors import WebSocketError, WebSocketOpenedError, IntegretyError
+from vrcpy.errors import WebSocketError, WebSocketOpenedError, IntegrityError
 from vrcpy.types import State
 
 
@@ -138,7 +138,7 @@ class WSSClient(Client):
 
         try:
             world = objects.World(self, content['world'])
-        except IntegretyError:
+        except IntegrityError:
             world = self.fetch_world(content['world']['id'])
 
         instance = world.fetch_instance(content['instance'])

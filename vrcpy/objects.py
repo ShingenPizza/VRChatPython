@@ -2,7 +2,7 @@
 from typing import List
 
 from vrcpy import types
-from vrcpy.errors import IntegretyError, GeneralError
+from vrcpy.errors import IntegrityError, GeneralError
 
 
 class BaseObject:
@@ -19,7 +19,7 @@ class BaseObject:
         self._dict = {}  # Dictionary that is assigned
 
     def _assign(self, obj):
-        self._objectIntegrety(obj)
+        self._objectIntegrity(obj)
 
         for key in obj:
             if key in self.types:
@@ -34,18 +34,18 @@ class BaseObject:
 
         self._dict = obj
 
-    def _objectIntegrety(self, obj):
+    def _objectIntegrity(self, obj):
         if not self.only:
             for key in self.unique:
                 if key not in obj:
-                    raise IntegretyError(f"Object does not have unique key ({key}) for {self.objType} (Class definition may be outdated, please make an issue on github)")
+                    raise IntegrityError(f"Object does not have unique key ({key}) for {self.objType} (Class definition may be outdated, please make an issue on github)")
         else:
             for key in obj:
                 if key not in self.only:
-                    raise IntegretyError(f"Object has key not found in {self.objType} (Class definition may be outdated, please make an issue on github)")
+                    raise IntegrityError(f"Object has key not found in {self.objType} (Class definition may be outdated, please make an issue on github)")
             for key in self.only:
                 if key not in obj:
-                    raise IntegretyError(f"Object does not have requred key ({key}) for {self.objType} (Class definition may be outdated, please make an issue on github)")
+                    raise IntegrityError(f"Object does not have requred key ({key}) for {self.objType} (Class definition may be outdated, please make an issue on github)")
 
 
 class Avatar(BaseObject):
