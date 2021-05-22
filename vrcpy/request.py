@@ -4,7 +4,7 @@ import requests
 
 from vrcpy.errors import (
     AlreadyFriendsError, GeneralError, IncorrectLoginError, InvalidTwoFactorAuth, NotFoundError, NotAuthenticated, NotFriendsError, OutOfDateError,
-    RateLimitError, RequiresTwoFactorAuthError, ServiceUnavailable,
+    RateLimitError, RequiresTwoFactorAuthError,
 )
 
 
@@ -45,7 +45,10 @@ def raise_for_status(resp):
         raise requests.exceptions.ConnectionError("Bad Gateway.")
 
     def handle_503():
-        raise ServiceUnavailable(resp['data']['error']['message'])
+        try:
+            raise requests.exceptions.ConnectionError(f"503 Service Temporarily Unavailable - {resp['data']['error']['message']}")
+        except Exception:
+            raise requests.exceptions.ConnectionError("503 Service Temporarily Unavailable")
 
     def handle_504():
         raise requests.exceptions.ConnectionError("Gateway Time-out.")
