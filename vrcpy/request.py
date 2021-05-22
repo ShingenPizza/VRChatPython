@@ -1,4 +1,5 @@
 import json as jsondecoder
+from time import sleep
 
 import requests
 
@@ -73,6 +74,7 @@ def raise_for_status(resp):
 
 class Call:
     call_retries = 3
+    retry_sleep = 10
 
     def __init__(self, verify=True):
         self.verify = verify
@@ -89,7 +91,7 @@ class Call:
         self.session = requests.Session()
         self.b64_auth = None
 
-    def call(self, path, method='GET', headers=None, params=None, json=None, no_auth=False, verify=True, retries=None):
+    def call(self, path, method='GET', headers=None, params=None, json=None, no_auth=False, verify=True, retries=None, retry_sleep=None):
         if headers is None:
             headers = {}
         if params is None:
@@ -97,6 +99,7 @@ class Call:
         if json is None:
             json = {}
         retries = retries or self.call_retries
+        retry_sleep = retry_sleep or self.retry_sleep
         resp = None
         for attempt in range(retries + 1):
             try:
@@ -106,6 +109,7 @@ class Call:
             except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
                 if attempt >= retries:
                     raise requests.exceptions.ConnectionError(f"{e} ({retries} retries)")
+                sleep(retry_sleep)
 
         return resp
 
