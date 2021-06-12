@@ -3,7 +3,7 @@ from typing import List
 import urllib.parse
 
 from vrcpy import objects
-from vrcpy.errors import AlreadyLoggedInError
+from vrcpy.errors import AlreadyLoggedInError, InvalidResponseContent, InvalidResponseFormat
 from vrcpy.request import Call
 
 
@@ -281,3 +281,21 @@ class Client:
         """
         resp = self.api.call('/auth/user/notifications')
         return [objects.Notification(self, n) for n in resp['data']]
+
+    def accept_notification(self, notification_id):
+        """
+        Used to accept a notification
+
+        :param notification_id: ID of the notification
+        :type notification_id: int
+
+        :return: that notification was successfully accepted, or raises an error
+        :rtype: bool
+        """
+        resp = self.api.call(f'/auth/user/notifications/{notification_id}/accept', method='PUT')
+        try:
+            if resp['data']['success']['message'] in {'Friendship created!', 'Ok'}:
+                return True
+            raise InvalidResponseContent(resp)
+        except Exception:
+            raise InvalidResponseFormat(resp)

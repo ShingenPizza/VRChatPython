@@ -66,3 +66,17 @@ class WebSocketOpenedError(Exception):
 class RateLimitError(Exception):
     # When VRChat is ratelimiting this user
     pass
+
+
+class InvalidResponse(Exception):
+    # When received an invalid response
+    def __init__(self, response):
+        self.response = response
+
+
+class InvalidResponseContent(InvalidResponse):
+    pass
+
+
+class InvalidResponseFormat(InvalidResponse):
+    pass

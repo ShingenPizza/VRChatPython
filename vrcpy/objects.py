@@ -506,6 +506,9 @@ class Notification(BaseObject):
 
         self._assign(obj)
 
+    def accept(self):
+        return self.client.accept_notification(self.id)
+
 
 class NotificationDetails(BaseObject):
     objType = 'NotificationDetails'
