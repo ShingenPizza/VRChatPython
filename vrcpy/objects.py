@@ -361,6 +361,9 @@ class LimitedWorld(BaseObject):
         resp = self.client.api.call('/favorites', 'POST', params={'type': types.FavoriteType.World, 'favoriteId': self.id})
         return Favorite(self.client, resp['data'])
 
+    def link(self):
+        return f'https://vrchat.com/home/world/{self.id}'
+
 
 class World(LimitedWorld):
     objType = 'World'
@@ -412,8 +415,7 @@ class Location:
 
         if ':' in location:
             self.worldId, location = location.split(':')
-
-        originalLocation = location
+        self.code = location
 
         try:
             if '~' in location:
@@ -426,7 +428,10 @@ class Location:
             else:
                 self.name = location
         except Exception as e:  # https://github.com/vrchatapi/VRChatPython/issues/17
-            raise GeneralError(f"Exception occured while trying to parse location string ({originalLocation})! Please open an issue on github! {e}")
+            raise GeneralError(f"Exception occured while trying to parse location string ({self.code})! Please open an issue on github! {e}")
+
+    def fetch_world(self):
+        return self.client.fetch_world(self.worldId)
 
 
 class Instance(BaseObject):
