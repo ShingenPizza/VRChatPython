@@ -411,6 +411,7 @@ class Location:
         self.worldId = None  # type: str
         self.userId = None  # type: str
         self.location = location  # type: str
+        self.region = 'us'  # type: str
         self.client = client
 
         if ':' in location:
@@ -419,12 +420,18 @@ class Location:
 
         try:
             if '~' in location:
-                if location.count('~') == 2:
-                    self.name, t, nonce = location.split('~')
-                    self.type, self.userId = t[:-1].split('(')
-                    self.nonce = nonce.split('(')[1][:-1]
-                elif location.count('~') == 1:
-                    self.name, self.type = location.split('~')  # Needs testing, https://github.com/vrchatapi/VRChatPython/issues/17
+                parts = location.split('~')
+                self.name = parts[0]
+                for p in parts[1:]:
+                    if p.startswith('region('):
+                        self.region = p[:-1].split('(')[1]
+                    elif p.startswith('nonce('):
+                        self.nonce = p[:-1].split('(')[1]
+                    else:
+                        if '(' in p:
+                            self.type, self.userId = p[:-1].split('(')
+                        else:
+                            self.type = p
             else:
                 self.name = location
         except Exception as e:  # https://github.com/vrchatapi/VRChatPython/issues/17
@@ -448,6 +455,7 @@ class Instance(BaseObject):
         self.capacity = None  # type: int
         self.instanceId = None  # type: str
         self.name = None  # type: str
+        self.region = 'us'  # type: str
 
         self._types.update({
             'id': Location,

@@ -82,3 +82,13 @@ class FavoriteType:
         if rs in {'world', 'friend', 'avatar'}:
             return True
         return False
+
+
+class Region:
+    US = 'us'
+    EU = 'eu'
+    JP = 'jp'
+
+    @staticmethod
+    def check(val):
+        return val in {Region.US, Region.EU, Region.JP}
