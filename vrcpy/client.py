@@ -18,7 +18,7 @@ class Client:
         :type verify: bool
         """
         self.api = Call(verify)
-        self.loggedIn = False
+        self.logged_in = False
         self.me = None  # type: objects.CurrentUser
 
         self.needsVerification = False
@@ -34,7 +34,7 @@ class Client:
         :param password: Password of VRC account
         :type password: str
         """
-        if self.loggedIn:
+        if self.logged_in:
             raise AlreadyLoggedInError("Client is already logged in")
 
         if b64 is None:
@@ -44,13 +44,12 @@ class Client:
         elif username is not None or password is not None:
             raise Exception("You have to provide either username and password directly, or a base64-encoded auth 'token'.")
 
-        resp = self.api.call('/auth/user', headers={'Authorization': f'Basic {b64}'}, no_auth=True)
+        resp = self.api.call('/auth/user', headers={'Authorization': f'Basic {b64}'}, authenticate=True)
 
-        self.api.set_auth(b64)
-        self.api.session.cookies.set('auth', resp['response'].cookies['auth'])
+        self.api.set_auth_login(resp['response'].cookies['auth'])
 
         self.me = objects.CurrentUser(self, resp['data'])
-        self.loggedIn = True
+        self.logged_in = True
 
     def logout(self):
         """
@@ -58,7 +57,18 @@ class Client:
         """
         self.api.call('/logout', 'PUT')
         self.api.new_session()
-        self.loggedIn = False
+        self.logged_in = False
+
+    def set_auth(self, auth):
+        """
+        Sets the authentication cookie to given value.
+        You can use this instead of logging in again, if you have a cookie received during a previous login, that you didn't invalidate.
+
+        :param auth: auth cookie
+        :type auth: str
+        """
+        self.api.set_auth(auth)
+        self.logged_in = True
 
     def fetch_me(self):
         """

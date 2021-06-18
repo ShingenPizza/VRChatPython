@@ -20,12 +20,12 @@ class WSSClient(Client):
 
     def login(self, username=None, password=None, b64=None):
         super().login(username=username, password=password, b64=b64)
-        if self.loggedIn:
+        if self.logged_in:
             self.connect()
 
     def logout(self):
         super().logout()
-        if not self.loggedIn:
+        if not self.logged_in:
             self.disconnect()
 
     def connect(self):

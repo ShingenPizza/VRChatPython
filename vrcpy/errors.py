@@ -9,7 +9,12 @@ class IncorrectLoginError(Exception):
 
 
 class NotAuthenticated(Exception):
-    # When user tries to call authenticated requests without setting b64_auth
+    # When user tries to call authenticated requests without setting auth
+    pass
+
+
+class MissingCredentials(Exception):
+    # When user tries to use invalid or no auth cookie
     pass
 
 
